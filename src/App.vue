@@ -50,7 +50,7 @@
           </label>
         </div>
 
-        <pre class="whitespace-pre-wrap bg-gray-100 p-6 rounded-lg shadow text-left" :class="fontSizeClass">
+        <pre class="whitespace-pre-wrap bg-gray-100 p-6 rounded-lg shadow text-center" :class="fontSizeClass">
           {{ lyrics }}
         </pre>
       </div>
