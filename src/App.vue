@@ -50,116 +50,124 @@
           </label>
         </div>
 
-        <pre class="whitespace-pre-wrap bg-gray-100 p-6 rounded-lg shadow text-center" :class="fontSizeClass">
-          {{ lyrics }}
-        </pre>
+        <pre class="whitespace-pre-wrap bg-gray-100 p-6 rounded-lg shadow text-center" :class="fontSizeClass">{{ lyrics }}</pre>
       </div>
-    </div>
-
-    <!-- Botón para volver -->
-    <div v-if="lyrics" class="flex justify-center mt-6">
-      <button @click="resetSearch"
-        class="inline-block w-1/2 text-center rounded-lg border-2 border-red-600 bg-red-600 text-white py-2 text-sm font-semibold transition-all hover:bg-transparent hover:text-red-600 focus:outline-none focus:ring focus:ring-red-300">
-        Volver a buscar
-      </button>
     </div>
 
     <!-- Resultados de canciones -->
     <div v-else class="grid grid-cols-1 gap-4 lg:grid-cols-4 md:grid-cols-2 lg:gap-8 w-7/12 mx-auto">
+      <!-- Mostrar resultados de búsqueda -->
       <cardSongVue v-for="(data, index) in results" :key="index" :id="data.id" :title="data.title"
         :description="data.description" :duration="data.duration" :explicit="data.explicit" :preview="data.preview"
-        :album="data.album" :image="data.image" @fetch-lyrics="fetchLyrics(index)"></cardSongVue>
+        :album="data.album" :image="data.image" @fetch-lyrics="fetchLyrics(data)" />
     </div>
+    <!-- Mostrar canciones recientes -->
+    <div v-if="!results.length && recentSongs.length">
+
+      <h2 class="text-xl font-bold text-gray-800 mb-4 flex justify-center">Últimas canciones vistas:</h2>
+
+      <div class="grid grid-cols-1 gap-4 lg:grid-cols-4 md:grid-cols-2 lg:gap-8 w-7/12 mx-auto">
+        <cardSongVue v-for="(data, index) in recentSongs" :key="'recent-' + index" :id="data.id" :title="data.title"
+          :description="data.description" :duration="data.duration" :explicit="data.explicit" :preview="data.preview"
+          :album="data.album" :image="data.image" @fetch-lyrics="fetchLyrics(data)" />
+      </div>
+    </div>
+    
   </div>
 </template>
 
 <script setup>
 import { ref, computed } from 'vue';
 import axios from 'axios';
+import { debounce } from 'lodash';
 import cardSongVue from './components/cardSong.vue';
 
+// Constantes
+const MAX_RECENT_SONGS = 5;
+
+// Refs
 const results = ref([]);
+const recentSongs = ref(getRecentSongsFromStorage());
 const inputValue = ref('');
 const lyrics = ref(null);
 const currentSong = ref(null);
-const selectedFontSize = ref('medium'); // Tamaño de letra seleccionado
+const selectedFontSize = ref('medium');
 
-let debounceTimer = null;
+// Funciones auxiliares
+function getRecentSongsFromStorage() {
+  return JSON.parse(localStorage.getItem('recentSongs')) || [];
+}
+
+function saveRecentSongsToStorage(songs) {
+  localStorage.setItem('recentSongs', JSON.stringify(songs));
+}
+
+function formatDuration(seconds) {
+  return `${Math.floor(seconds / 60)}:${String(seconds % 60).padStart(2, '0')}`;
+}
+
+// Debounced search
+const debouncedSearch = debounce(searchSong, 300);
 
 function onKeyDown() {
-  clearTimeout(debounceTimer);
-  debounceTimer = setTimeout(() => {
-    searchSong(inputValue.value);
-  }, 300);
+  debouncedSearch(inputValue.value);
 }
 
 async function searchSong(searchQuery) {
-  lyrics.value = null;
-  currentSong.value = null;
   if (!searchQuery) {
     results.value = [];
+    lyrics.value = null;
     return;
   }
 
   try {
-    const response = await axios.get(
-      `https://api.lyrics.ovh/suggest/${searchQuery}&limit=0`
-    );
-    const data = response.data.data;
-
-    results.value = data.map((song) => ({
-      id: song.id,
-      title: song.title,
-      description: song.artist.name,
-      duration: `${Math.floor(song.duration / 60)}:${String(song.duration % 60).padStart(2, '0')}`,
-      explicit: song.explicit_lyrics,
-      preview: song.preview,
-      album: {
-        title: song.album.title,
-        cover: song.album.cover_medium,
-        link: song.album.tracklist,
-      },
-      image: {
-        src: song.album.cover_medium,
-        alt: `Cover of ${song.album.title}`,
-      },
-    }));
+    const response = await axios.get(`https://api.lyrics.ovh/suggest/${searchQuery}&limit=0`);
+    results.value = response.data.data.map(mapSongData);
   } catch (error) {
     console.error('Error al obtener canciones:', error.message);
     results.value = [];
   }
 }
 
-async function fetchLyrics(index) {
-  const song = results.value[index];
+function mapSongData(song) {
+  return {
+    id: song.id,
+    title: song.title,
+    description: song.artist.name,
+    duration: formatDuration(song.duration),
+    explicit: song.explicit_lyrics,
+    preview: song.preview,
+    album: { title: song.album.title, cover: song.album.cover_medium, link: song.album.tracklist },
+    image: { src: song.album.cover_medium, alt: `Cover of ${song.album.title}` },
+  };
+}
+
+async function fetchLyrics(song) {
   try {
-    const response = await axios.get(
-      `https://api.lyrics.ovh/v1/${song.description}/${song.title}`
-    );
-    lyrics.value = response.data.lyrics;
+    const response = await axios.get(`https://api.lyrics.ovh/v1/${song.description}/${song.title}`);
+    lyrics.value = response.data.lyrics || 'No se encontraron letras para esta canción.';
     currentSong.value = song;
-    results.value = []; // Limpia los resultados para mostrar solo la letra
+    results.value = [];
+    addToRecentSongs(song);
   } catch (error) {
-    console.error('Error al obtener las letras:', error.message);
+    console.error('Error al obtener letras:', error.message);
     lyrics.value = 'No se encontraron letras para esta canción.';
   }
 }
 
-function resetSearch() {
-  lyrics.value = null;
-  currentSong.value = null;
+function addToRecentSongs(song) {
+  if (!recentSongs.value.some((s) => s.id === song.id)) {
+    recentSongs.value.unshift(song);
+    if (recentSongs.value.length > MAX_RECENT_SONGS) {
+      recentSongs.value.pop();
+    }
+    saveRecentSongsToStorage(recentSongs.value);
+  }
 }
 
+// Computados
 const fontSizeClass = computed(() => {
-  switch (selectedFontSize.value) {
-    case 'small':
-      return 'text-sm';
-    case 'medium':
-      return 'text-lg';
-    case 'large':
-      return 'text-2xl';
-    default:
-      return 'text-base';
-  }
+  const sizes = { small: 'text-sm', medium: 'text-lg', large: 'text-2xl' };
+  return sizes[selectedFontSize.value] || 'text-base';
 });
 </script>
