@@ -16,6 +16,11 @@
       </div>
     </div>
 
+    <!-- Spinner de carga -->
+    <div v-if="isLoading" class="flex justify-center items-center h-screen">
+      <div class="w-12 h-12 border-4 border-blue-500 border-t-transparent rounded-full animate-spin"></div>
+    </div>
+
     <!-- Alerta: Sin resultados -->
     <div v-if="showNoResultsAlert" class="mb-6 text-center text-red-600 font-medium">
       No se encontraron resultados para tu búsqueda.
@@ -65,9 +70,8 @@
       </div>
     </div>
 
-    <!-- Resultados de canciones -->
+    <!-- Mostrar resultados de búsqueda -->
     <div v-else class="grid grid-cols-1 gap-4 lg:grid-cols-4 md:grid-cols-2 lg:gap-8 w-7/12 mx-auto">
-      <!-- Mostrar resultados de búsqueda -->
       <cardSongVue v-for="(data, index) in results" :key="index" :id="data.id" :title="data.title"
         :description="data.description" :duration="data.duration" :explicit="data.explicit" :preview="data.preview"
         :album="data.album" :image="data.image" @fetch-lyrics="fetchLyrics(data)" />
@@ -91,6 +95,7 @@ import { debounce } from 'lodash';
 import cardSongVue from './components/cardSong.vue';
 
 // Variables reactivas
+const isLoading = ref(false); // Nueva variable para el estado de carga
 const results = ref([]);
 const recentSongs = ref(getRecentSongsFromStorage());
 const inputValue = ref('');
@@ -125,6 +130,8 @@ async function searchSong(searchQuery) {
     return;
   }
 
+  isLoading.value = true; // Inicia la carga
+
   try {
     const response = await axios.get(`https://api.lyrics.ovh/suggest/${searchQuery}&limit=0`);
     if (response.data.total === 0) {
@@ -138,10 +145,14 @@ async function searchSong(searchQuery) {
     console.error('Error al buscar canciones:', error.message);
     results.value = [];
     showNoResultsAlert.value = true;
+  } finally {
+    isLoading.value = false; // Finaliza la carga
   }
 }
 
 async function fetchLyrics(song) {
+  isLoading.value = true; // Inicia la carga
+
   try {
     const response = await axios.get(`https://api.lyrics.ovh/v1/${song.description}/${song.title}`);
     lyrics.value = response.data.lyrics || null;
@@ -164,6 +175,8 @@ async function fetchLyrics(song) {
     }
 
     lyrics.value = null;
+  } finally {
+    isLoading.value = false; // Finaliza la carga
   }
 }
 
