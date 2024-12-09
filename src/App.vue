@@ -17,9 +17,7 @@
     </div>
 
     <!-- Spinner de carga -->
-    <div v-if="isLoading" class="flex justify-center items-center h-screen">
-      <div class="w-12 h-12 border-4 border-blue-500 border-t-transparent rounded-full animate-spin"></div>
-    </div>
+    <Loader v-if="isLoading" />
 
     <!-- Alerta: Sin resultados -->
     <div v-if="showNoResultsAlert" class="mb-6 text-center text-red-600 font-medium">
@@ -92,7 +90,9 @@
 import { ref, computed } from 'vue';
 import axios from 'axios';
 import { debounce } from 'lodash';
-import cardSongVue from './components/cardSong.vue';
+import cardSongVue from './components/CardSong.vue';
+import Loader from './components/Loader.vue';
+
 
 // Variables reactivas
 const isLoading = ref(false); // Nueva variable para el estado de carga
