@@ -103,7 +103,7 @@ const showNoResultsAlert = ref(false);
 const showNoLyricsAlert = ref(false);
 
 // Configuración
-const MAX_RECENT_SONGS = 5;
+const MAX_RECENT_SONGS = 8;
 
 // Búsqueda con debounce
 const debouncedSearch = debounce(searchSong, 300);
@@ -111,6 +111,10 @@ const debouncedSearch = debounce(searchSong, 300);
 function onKeyDown() {
   showNoResultsAlert.value = false;
   showNoLyricsAlert.value = false;
+
+  lyrics.value = null;
+  currentSong.value = null;
+
   debouncedSearch(inputValue.value);
 }
 
