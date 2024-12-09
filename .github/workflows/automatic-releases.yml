@@ -1,0 +1,22 @@
+name: Generate Release Notes on PR
+
+on:
+  pull_request:
+
+jobs:
+  generate-notes:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+      - name: Generate notes
+        run: |
+          conventional-changelog -p angular -i CHANGELOG.md -s
+      - name: Create draft release
+        uses: actions/create-release@v1
+        with:
+          tag_name: draft
+          release_name: Draft release
+          body: >-
+            $(cat CHANGELOG.md)
+          draft: true
+          
