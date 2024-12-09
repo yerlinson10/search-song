@@ -16,6 +16,16 @@
       </div>
     </div>
 
+    <!-- Alerta: Sin resultados -->
+    <div v-if="showNoResultsAlert" class="mb-6 text-center text-red-600 font-medium">
+      No se encontraron resultados para tu búsqueda.
+    </div>
+
+    <!-- Alerta: Sin letras -->
+    <div v-if="showNoLyricsAlert" class="mb-6 text-center text-yellow-600 font-medium">
+      La canción seleccionada no tiene letras disponibles.
+    </div>
+
     <!-- Información de la canción y letra -->
     <div v-if="lyrics" class="flex w-full max-w-7xl mx-auto">
       <!-- Información de la canción -->
@@ -50,7 +60,8 @@
           </label>
         </div>
 
-        <pre class="whitespace-pre-wrap bg-gray-100 p-6 rounded-lg shadow text-center" :class="fontSizeClass">{{ lyrics }}</pre>
+        <pre class="whitespace-pre-wrap bg-gray-100 p-6 rounded-lg shadow text-center"
+          :class="fontSizeClass">{{ lyrics }}</pre>
       </div>
     </div>
 
@@ -63,16 +74,13 @@
     </div>
     <!-- Mostrar canciones recientes -->
     <div v-if="!results.length && recentSongs.length">
-
       <h2 class="text-xl font-bold text-gray-800 mb-4 flex justify-center">Últimas canciones vistas:</h2>
-
       <div class="grid grid-cols-1 gap-4 lg:grid-cols-4 md:grid-cols-2 lg:gap-8 w-7/12 mx-auto">
         <cardSongVue v-for="(data, index) in recentSongs" :key="'recent-' + index" :id="data.id" :title="data.title"
           :description="data.description" :duration="data.duration" :explicit="data.explicit" :preview="data.preview"
           :album="data.album" :image="data.image" @fetch-lyrics="fetchLyrics(data)" />
       </div>
     </div>
-    
   </div>
 </template>
 
@@ -82,10 +90,7 @@ import axios from 'axios';
 import { debounce } from 'lodash';
 import cardSongVue from './components/cardSong.vue';
 
-// Constantes
-const MAX_RECENT_SONGS = 5;
-
-// Refs
+// Variables reactivas
 const results = ref([]);
 const recentSongs = ref(getRecentSongsFromStorage());
 const inputValue = ref('');
@@ -93,23 +98,19 @@ const lyrics = ref(null);
 const currentSong = ref(null);
 const selectedFontSize = ref('medium');
 
-// Funciones auxiliares
-function getRecentSongsFromStorage() {
-  return JSON.parse(localStorage.getItem('recentSongs')) || [];
-}
+// Alertas
+const showNoResultsAlert = ref(false);
+const showNoLyricsAlert = ref(false);
 
-function saveRecentSongsToStorage(songs) {
-  localStorage.setItem('recentSongs', JSON.stringify(songs));
-}
+// Configuración
+const MAX_RECENT_SONGS = 5;
 
-function formatDuration(seconds) {
-  return `${Math.floor(seconds / 60)}:${String(seconds % 60).padStart(2, '0')}`;
-}
-
-// Debounced search
+// Búsqueda con debounce
 const debouncedSearch = debounce(searchSong, 300);
 
 function onKeyDown() {
+  showNoResultsAlert.value = false;
+  showNoLyricsAlert.value = false;
   debouncedSearch(inputValue.value);
 }
 
@@ -122,10 +123,43 @@ async function searchSong(searchQuery) {
 
   try {
     const response = await axios.get(`https://api.lyrics.ovh/suggest/${searchQuery}&limit=0`);
-    results.value = response.data.data.map(mapSongData);
+    if (response.data.total === 0) {
+      showNoResultsAlert.value = true;
+      results.value = [];
+    } else {
+      results.value = response.data.data.map(mapSongData);
+      showNoResultsAlert.value = false;
+    }
   } catch (error) {
-    console.error('Error al obtener canciones:', error.message);
+    console.error('Error al buscar canciones:', error.message);
     results.value = [];
+    showNoResultsAlert.value = true;
+  }
+}
+
+async function fetchLyrics(song) {
+  try {
+    const response = await axios.get(`https://api.lyrics.ovh/v1/${song.description}/${song.title}`);
+    lyrics.value = response.data.lyrics || null;
+
+    if (!lyrics.value) {
+      showNoLyricsAlert.value = true;
+    } else {
+      showNoLyricsAlert.value = false;
+    }
+
+    currentSong.value = song;
+    results.value = [];
+    addToRecentSongs(song);
+  } catch (error) {
+    if (error.response?.status === 404) {
+      console.warn('Letra no encontrada:', error.response.data.error);
+      showNoLyricsAlert.value = true;
+    } else {
+      console.error('Error al obtener letras:', error.message);
+    }
+
+    lyrics.value = null;
   }
 }
 
@@ -142,17 +176,12 @@ function mapSongData(song) {
   };
 }
 
-async function fetchLyrics(song) {
-  try {
-    const response = await axios.get(`https://api.lyrics.ovh/v1/${song.description}/${song.title}`);
-    lyrics.value = response.data.lyrics || 'No se encontraron letras para esta canción.';
-    currentSong.value = song;
-    results.value = [];
-    addToRecentSongs(song);
-  } catch (error) {
-    console.error('Error al obtener letras:', error.message);
-    lyrics.value = 'No se encontraron letras para esta canción.';
-  }
+function getRecentSongsFromStorage() {
+  return JSON.parse(localStorage.getItem('recentSongs')) || [];
+}
+
+function saveRecentSongsToStorage(songs) {
+  localStorage.setItem('recentSongs', JSON.stringify(songs));
 }
 
 function addToRecentSongs(song) {
@@ -165,7 +194,10 @@ function addToRecentSongs(song) {
   }
 }
 
-// Computados
+function formatDuration(seconds) {
+  return `${Math.floor(seconds / 60)}:${String(seconds % 60).padStart(2, '0')}`;
+}
+
 const fontSizeClass = computed(() => {
   const sizes = { small: 'text-sm', medium: 'text-lg', large: 'text-2xl' };
   return sizes[selectedFontSize.value] || 'text-base';
