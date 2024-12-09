@@ -90,9 +90,8 @@
 import { ref, computed } from 'vue';
 import axios from 'axios';
 import { debounce } from 'lodash';
-import cardSongVue from './components/CardSong.vue';
 import Loader from './components/Loader.vue';
-
+import cardSongVue from './components/SongCard.vue';
 
 // Variables reactivas
 const isLoading = ref(false); // Nueva variable para el estado de carga
